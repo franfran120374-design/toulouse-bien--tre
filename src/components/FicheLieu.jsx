@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient.js';
 
 const TYPES_SIGNALEMENT = [
@@ -55,6 +55,55 @@ export default function FicheLieu({ lieu, categorie, onFermer, onSignaler }) {
   const [photoEnvoi, setPhotoEnvoi] = useState(false);
   const [photoEnvoyee, setPhotoEnvoyee] = useState(false);
   const [photoErreur, setPhotoErreur] = useState(null);
+
+  // --- Commentaires / avis ---
+  const [avis, setAvis] = useState([]);
+  const [avisTexte, setAvisTexte] = useState('');
+  const [avisAuteur, setAvisAuteur] = useState('');
+  const [avisNote, setAvisNote] = useState(0); // 0 = pas de note
+  const [avisEnvoi, setAvisEnvoi] = useState(false);
+  const [avisEnvoye, setAvisEnvoye] = useState(false);
+  const [avisErreur, setAvisErreur] = useState(null);
+
+  useEffect(() => {
+    let actif = true;
+    supabase
+      .from('commentaires')
+      .select('*')
+      .eq('lieu_id', lieu.id)
+      .eq('statut_moderation', 'approuve')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (actif) setAvis(data || []);
+      });
+    return () => {
+      actif = false;
+    };
+  }, [lieu.id]);
+
+  async function envoyerAvis(e) {
+    e.preventDefault();
+    if (!avisTexte.trim()) {
+      setAvisErreur('Écris un commentaire.');
+      return;
+    }
+    setAvisEnvoi(true);
+    setAvisErreur(null);
+    try {
+      const { error } = await supabase.from('commentaires').insert({
+        lieu_id: lieu.id,
+        texte: avisTexte.trim(),
+        auteur: avisAuteur.trim() || null,
+        note: avisNote > 0 ? avisNote : null,
+      });
+      if (error) throw error;
+      setAvisEnvoye(true);
+    } catch (err) {
+      setAvisErreur(err.message);
+    } finally {
+      setAvisEnvoi(false);
+    }
+  }
 
   const lienItineraire = `https://www.google.com/maps/dir/?api=1&destination=${lieu.lat},${lieu.lng}`;
 
@@ -227,6 +276,74 @@ export default function FicheLieu({ lieu, categorie, onFermer, onSignaler }) {
           Merci, ton signalement a été enregistré et sera vérifié.
         </div>
       )}
+
+      <div style={{ marginTop: 20, borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
+        <h3 style={{ margin: '0 0 8px' }}>
+          Avis {avis.length > 0 && `(${avis.length})`}
+        </h3>
+
+        {avis.length === 0 && (
+          <p style={{ color: '#64748b', fontSize: 14 }}>
+            Aucun avis pour l'instant. Sois le premier à en laisser un !
+          </p>
+        )}
+
+        {avis.map((a) => (
+          <div
+            key={a.id}
+            style={{ borderBottom: '1px solid #f1f5f9', padding: '8px 0', fontSize: 14 }}
+          >
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {a.note && <span>{'★'.repeat(a.note)}{'☆'.repeat(5 - a.note)}</span>}
+              <strong>{a.auteur || 'Anonyme'}</strong>
+            </div>
+            <p style={{ margin: '4px 0 0' }}>{a.texte}</p>
+          </div>
+        ))}
+
+        {!avisEnvoye ? (
+          <form onSubmit={envoyerAvis} style={{ marginTop: 12 }}>
+            <div className="field">
+              <label>Ton avis</label>
+              <textarea
+                rows={3}
+                maxLength={1000}
+                value={avisTexte}
+                onChange={(e) => setAvisTexte(e.target.value)}
+                placeholder="Ton retour sur ce lieu…"
+              />
+            </div>
+            <div className="row">
+              <div className="field" style={{ flex: 1 }}>
+                <label>Prénom (optionnel)</label>
+                <input value={avisAuteur} onChange={(e) => setAvisAuteur(e.target.value)} />
+              </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Note (optionnel)</label>
+                <div style={{ fontSize: 24, cursor: 'pointer', userSelect: 'none' }}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <span
+                      key={n}
+                      onClick={() => setAvisNote(n === avisNote ? 0 : n)}
+                      style={{ color: n <= avisNote ? '#f59e0b' : '#cbd5e1' }}
+                    >
+                      ★
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {avisErreur && <p style={{ color: '#dc2626' }}>{avisErreur}</p>}
+            <button className="btn" type="submit" disabled={avisEnvoi}>
+              {avisEnvoi ? 'Envoi…' : 'Publier mon avis'}
+            </button>
+          </form>
+        ) : (
+          <div className="confirmation" style={{ marginTop: 12 }}>
+            Merci ! Ton avis sera vérifié avant d'apparaître.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -93,11 +93,12 @@ function FileModeration() {
   const [lieux, setLieux] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [signalements, setSignalements] = useState([]);
+  const [avis, setAvis] = useState([]);
   const [chargement, setChargement] = useState(true);
 
   const charger = useCallback(async () => {
     setChargement(true);
-    const [lieuxRes, photosRes, signRes] = await Promise.all([
+    const [lieuxRes, photosRes, signRes, avisRes] = await Promise.all([
       supabase.from('lieux').select('*').eq('statut_moderation', 'en_attente').order('created_at'),
       supabase
         .from('photos_proposees')
@@ -105,10 +106,16 @@ function FileModeration() {
         .eq('statut_moderation', 'en_attente')
         .order('created_at'),
       supabase.from('signalements').select('*, lieux(nom)').eq('statut', 'ouvert').order('created_at'),
+      supabase
+        .from('commentaires')
+        .select('*, lieux(nom)')
+        .eq('statut_moderation', 'en_attente')
+        .order('created_at'),
     ]);
     setLieux(lieuxRes.data || []);
     setPhotos(photosRes.data || []);
     setSignalements(signRes.data || []);
+    setAvis(avisRes.data || []);
     setChargement(false);
   }, []);
 
@@ -132,6 +139,11 @@ function FileModeration() {
 
   async function traiterSignalement(id, statut) {
     await supabase.from('signalements').update({ statut }).eq('id', id);
+    charger();
+  }
+
+  async function modererAvis(id, statut) {
+    await supabase.from('commentaires').update({ statut_moderation: statut }).eq('id', id);
     charger();
   }
 
@@ -208,6 +220,32 @@ function FileModeration() {
               onClick={() => traiterSignalement(s.id, 'rejete')}
             >
               Rejeter
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <h3>Avis proposés ({avis.length})</h3>
+      {avis.length === 0 && <p>Aucun avis en attente.</p>}
+      {avis.map((a) => (
+        <div key={a.id} style={cardStyle}>
+          <div style={{ fontSize: 13, color: '#64748b' }}>Pour : {a.lieux?.nom || a.lieu_id}</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {a.note && (
+              <span style={{ color: '#f59e0b' }}>
+                {'★'.repeat(a.note)}
+                {'☆'.repeat(5 - a.note)}
+              </span>
+            )}
+            <strong>{a.auteur || 'Anonyme'}</strong>
+          </div>
+          <p style={{ fontSize: 14 }}>{a.texte}</p>
+          <div className="row">
+            <button className="btn" onClick={() => modererAvis(a.id, 'approuve')}>
+              ✓ Approuver
+            </button>
+            <button className="btn" style={rejStyle} onClick={() => modererAvis(a.id, 'rejete')}>
+              ✕ Rejeter
             </button>
           </div>
         </div>
