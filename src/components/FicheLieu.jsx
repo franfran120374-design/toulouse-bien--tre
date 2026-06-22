@@ -9,6 +9,42 @@ const TYPES_SIGNALEMENT = [
   { value: 'autre', label: 'Autre' },
 ];
 
+// Redimensionne et recompresse une image dans le navigateur avant l'upload.
+// On accepte n'importe quelle taille de photo (même 48 Mpx d'un téléphone
+// récent) et on la ramène à une largeur max nette pour un écran, ce qui
+// fait tomber le poids à quelques centaines de Ko sans perte visible.
+async function compresserImage(fichier, largeurMax = 1600, qualite = 0.82) {
+  // Les images déjà petites ne gagnent rien à être retraitées
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(fichier);
+  });
+
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = dataUrl;
+  });
+
+  // Si l'image est déjà plus étroite que la cible, on garde ses dimensions
+  const ratio = Math.min(1, largeurMax / img.width);
+  const largeur = Math.round(img.width * ratio);
+  const hauteur = Math.round(img.height * ratio);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = largeur;
+  canvas.height = hauteur;
+  canvas.getContext('2d').drawImage(img, 0, 0, largeur, hauteur);
+
+  const blob = await new Promise((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', qualite)
+  );
+  return blob; // toujours du JPEG en sortie
+}
+
 export default function FicheLieu({ lieu, categorie, onFermer, onSignaler }) {
   const [signalementOuvert, setSignalementOuvert] = useState(false);
   const [type, setType] = useState(TYPES_SIGNALEMENT[0].value);
@@ -25,23 +61,28 @@ export default function FicheLieu({ lieu, categorie, onFermer, onSignaler }) {
   async function proposerPhoto(e) {
     const fichier = e.target.files?.[0];
     if (!fichier) return;
-    // Garde-fous simples côté client (la vraie validation reste la modération)
     if (!fichier.type.startsWith('image/')) {
       setPhotoErreur('Le fichier doit être une image.');
-      return;
-    }
-    if (fichier.size > 5 * 1024 * 1024) {
-      setPhotoErreur('Image trop lourde (max 5 Mo).');
       return;
     }
     setPhotoEnvoi(true);
     setPhotoErreur(null);
     try {
-      const ext = fichier.name.split('.').pop();
-      const chemin = `proposees/${lieu.id}/${Date.now()}.${ext}`;
+      // Compression côté navigateur : on accepte toute taille en entrée,
+      // l'image sort en JPEG léger (~quelques centaines de Ko).
+      let aEnvoyer;
+      try {
+        aEnvoyer = await compresserImage(fichier);
+      } catch {
+        // Si la compression échoue (format exotique type HEIC non décodable
+        // par le navigateur), on retombe sur le fichier d'origine.
+        aEnvoyer = fichier;
+      }
+
+      const chemin = `proposees/${lieu.id}/${Date.now()}.jpg`;
       const { error: errUp } = await supabase.storage
         .from('photos-lieux')
-        .upload(chemin, fichier, { upsert: false });
+        .upload(chemin, aEnvoyer, { upsert: false, contentType: 'image/jpeg' });
       if (errUp) throw errUp;
 
       const { data: pub } = supabase.storage.from('photos-lieux').getPublicUrl(chemin);
@@ -94,13 +135,36 @@ export default function FicheLieu({ lieu, categorie, onFermer, onSignaler }) {
       {lieu.adresse && (
         <p>
           <strong>Adresse :</strong> {lieu.adresse}
+          {lieu.commune && lieu.commune !== 'Toulouse' ? `, ${lieu.commune}` : ''}
         </p>
       )}
-      {lieu.horaires && (
+      {lieu.horaires ? (
         <p>
           <strong>Horaires :</strong> {lieu.horaires}
         </p>
+      ) : (
+        <p style={{ color: '#16a34a' }}>
+          <strong>Accès :</strong> libre, sans horaires connus
+        </p>
       )}
+
+      {lieu.details && (
+        <div style={{ margin: '8px 0' }}>
+          {Object.entries(lieu.details).map(([cle, valeur]) => (
+            <div key={cle} style={{ fontSize: 14, padding: '2px 0' }}>
+              <strong>{cle} :</strong>{' '}
+              {String(valeur).startsWith('http') ? (
+                <a href={valeur} target="_blank" rel="noreferrer">
+                  lien
+                </a>
+              ) : (
+                valeur
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {lieu.accessible_pmr && <span className="badge">♿ Accessible PMR</span>}
 
       <div className="row" style={{ marginTop: 16 }}>
