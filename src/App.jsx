@@ -5,6 +5,7 @@ import Filtres from './components/Filtres.jsx';
 import FicheLieu from './components/FicheLieu.jsx';
 import FormulaireAjout from './components/FormulaireAjout.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
+import Aide from './components/Aide.jsx';
 
 export default function App() {
   // Petit "routeur" sans dépendance : l'URL #admin affiche le panel
@@ -24,13 +25,14 @@ export default function App() {
 function CarteApp() {
   const [categories, setCategories] = useState([]);
   const [lieux, setLieux] = useState([]);
-  const [categoriesActives, setCategoriesActives] = useState(null); // null = toutes
+  const [categoriesActives, setCategoriesActives] = useState([]); // [] = rien de sélectionné au départ
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
 
   const [modeAjout, setModeAjout] = useState(false);
   const [nouveauPoint, setNouveauPoint] = useState(null); // { lat, lng } en attente de formulaire
   const [lieuSelectionne, setLieuSelectionne] = useState(null);
+  const [aideVisible, setAideVisible] = useState(true);
 
 
   const chargerDonnees = useCallback(async () => {
@@ -74,20 +76,13 @@ function CarteApp() {
     chargerDonnees();
   }, [chargerDonnees]);
 
-  const lieuxFiltres = lieux.filter(
-    (l) => !categoriesActives || categoriesActives.includes(l.categorie_id)
-  );
+  // Aucune catégorie cochée = carte vide (l'utilisateur choisit ce qu'il cherche)
+  const lieuxFiltres = lieux.filter((l) => categoriesActives.includes(l.categorie_id));
 
   function toggleCategorie(id) {
-    setCategoriesActives((prev) => {
-      const toutesActives = !prev;
-      const base = toutesActives ? categories.map((c) => c.id) : prev;
-      if (base.includes(id)) {
-        const next = base.filter((c) => c !== id);
-        return next;
-      }
-      return [...base, id];
-    });
+    setCategoriesActives((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
   }
 
   function handleClicCarte(latlng) {
@@ -122,8 +117,16 @@ function CarteApp() {
 
   return (
     <div className="app">
+      {aideVisible && <Aide onFermer={() => setAideVisible(false)} />}
       <div className="topbar">
         <h1>🌿 Toulouse Bien-être</h1>
+        <button
+          className="btn"
+          onClick={() => setAideVisible(true)}
+          title="Aide"
+        >
+          ?
+        </button>
         {!modeAjout ? (
           <button className="btn" onClick={() => setModeAjout(true)}>
             + Ajouter un lieu
@@ -156,6 +159,26 @@ function CarteApp() {
           onClicCarte={handleClicCarte}
           onClicLieu={setLieuSelectionne}
         />
+        {categoriesActives.length === 0 && !modeAjout && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 12,
+              left: 12,
+              right: 12,
+              zIndex: 1000,
+              background: '#16a34a',
+              color: 'white',
+              padding: '10px 14px',
+              borderRadius: 8,
+              textAlign: 'center',
+              fontWeight: 600,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+            }}
+          >
+            👆 Choisis une ou plusieurs catégories ci-dessus pour afficher les lieux
+          </div>
+        )}
       </div>
 
       {lieuSelectionne && (

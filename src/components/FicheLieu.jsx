@@ -176,7 +176,14 @@ export default function FicheLieu({ lieu, categorie, onFermer, onSignaler }) {
         <img
           src={lieu.photo_url}
           alt={lieu.nom}
-          style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 10, margin: '8px 0' }}
+          style={{
+            width: '100%',
+            maxHeight: 320,
+            objectFit: 'contain',
+            borderRadius: 10,
+            margin: '8px 0',
+            background: '#f1f5f9',
+          }}
         />
       )}
 

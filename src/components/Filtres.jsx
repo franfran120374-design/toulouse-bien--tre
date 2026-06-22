@@ -6,7 +6,7 @@ export default function Filtres({ categories, categoriesActives, onToggle }) {
   return (
     <div className="filtres">
       {categories.map((cat) => {
-        const actif = !categoriesActives || categoriesActives.includes(cat.id);
+        const actif = categoriesActives.includes(cat.id);
         return (
           <button
             key={cat.id}
