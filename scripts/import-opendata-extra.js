@@ -85,7 +85,14 @@ async function run() {
       lng: r.geo_point_2d.lon,
       adresse: r.adresse || null,
       commune: r.commune || 'Toulouse',
-      description: r.mis_a_dispo_de ? `Géré par : ${r.mis_a_dispo_de}` : null,
+      details: (() => {
+        const d = {};
+        if (r.mis_a_dispo_de) d['Géré par'] = r.mis_a_dispo_de;
+        if (r.statut) d['Statut'] = r.statut;
+        if (r.surface) d['Surface'] = `${r.surface} m²`;
+        if (r.site_internet) d['Site'] = r.site_internet;
+        return Object.keys(d).length ? d : null;
+      })(),
       source: 'opendata',
       statut_moderation: 'approuve',
     }));
@@ -106,7 +113,12 @@ async function run() {
       lng: r.geo_point_2d.lon,
       adresse: [r.no, r.lib_voie].filter(Boolean).join(' ') || null,
       commune: r.commune || 'Toulouse',
-      description: r.nb_places ? `${r.nb_places} places` : null,
+      details: (() => {
+        const d = { Accès: 'Libre, accès permanent' };
+        if (r.nb_places) d['Nombre de places'] = String(r.nb_places);
+        if (r.quartier_resid) d['Quartier'] = r.quartier_resid;
+        return d;
+      })(),
       source: 'opendata',
       statut_moderation: 'approuve',
     }));

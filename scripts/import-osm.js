@@ -100,6 +100,26 @@ function coordonnees(el) {
   return null;
 }
 
+function nettoieDetails(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) continue;
+    const s = String(v).trim();
+    if (!s) continue;
+    out[k] = s;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// Traduit le tag OSM "access" en français lisible
+function accesLisible(tags) {
+  const a = tags.access;
+  if (a === 'private') return 'Privé';
+  if (a === 'customers') return 'Réservé aux clients';
+  if (a === 'permissive' || a === 'yes' || !a) return 'Libre';
+  return a;
+}
+
 async function inserer(slug, lieux) {
   if (!lieux.length) {
     console.log(`${slug} : rien à importer`);
@@ -158,7 +178,11 @@ async function run() {
             [tags['addr:housenumber'], tags['addr:street']].filter(Boolean).join(' ') || null,
           horaires: tags.opening_hours || null,
           accessible_pmr: tags.wheelchair === 'yes',
-          description: tags.operator ? `Géré par : ${tags.operator}` : null,
+          details: nettoieDetails({
+            Accès: accesLisible(tags),
+            Tarif: tags.fee === 'yes' ? 'Payant' : tags.fee === 'no' ? 'Gratuit' : null,
+            Gestionnaire: tags.operator || null,
+          }),
           source: 'opendata', // origine externe (OSM), pas une contribution utilisateur
           statut_moderation: 'approuve',
         };

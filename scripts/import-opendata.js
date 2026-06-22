@@ -53,6 +53,25 @@ function aDesCoordonneesValides(r) {
   );
 }
 
+// Construit un objet "details" en ne gardant que les valeurs renseignées
+// (pas de null, pas de "None", pas de chaîne vide).
+function details(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) continue;
+    const s = String(v).trim();
+    if (!s || s.toLowerCase() === 'none') continue;
+    out[k] = s;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function gestionnaireLisible(g) {
+  if (g === 'Commune') return 'Mairie';
+  if (g === 'EPCI') return 'Toulouse Métropole';
+  return g || null;
+}
+
 function nettoyerInfobulle(html) {
   if (!html) return null;
   return html
@@ -93,7 +112,15 @@ async function importerAiresDeJeux(catBySlug) {
       lng: r.geo_point_2d.lon,
       adresse: r.adresse || null,
       commune: r.commune || 'Toulouse',
-      description: r.ombrage ? `Ombrage : ${r.ombrage}` : null,
+      accessible_pmr: false,
+      details: details({
+        "Tranche d'âge": r.code_age_jeux,
+        'Nombre de jeux': r.nombre_jeux,
+        Sol: r.sol,
+        Clôturé: r.cloture === 'OUI' ? 'Oui' : r.cloture === 'NON' ? 'Non' : null,
+        Ombrage: r.ombrage,
+        Emplacement: r.localisation,
+      }),
       source: 'opendata',
       statut_moderation: 'approuve',
     }));
@@ -110,7 +137,11 @@ async function importerFontaines(catBySlug) {
       lng: r.geo_point_2d.lon,
       adresse: r.adresse || null,
       commune: r.commune || 'Toulouse',
-      description: r.type ? `Type : ${r.type}` : null,
+      details: details({
+        Type: r.type,
+        Quartier: r.quartier ? `Quartier ${r.quartier}` : null,
+        Accès: 'Libre, accès permanent',
+      }),
       source: 'opendata',
       statut_moderation: 'approuve',
     }));
@@ -129,8 +160,13 @@ async function importerEquipementsSportifs(catBySlug) {
       lng: r.geo_point_2d.lon,
       adresse: r.adresse || null,
       commune: 'Toulouse', // ce dataset ne couvre que la ville de Toulouse
-      description: nettoyerInfobulle(r.infobulle),
       accessible_pmr: r.accessibilite_psh === 1,
+      details: details({
+        Type: r.type_equipement,
+        Accès: 'Libre à tous',
+        Gestionnaire: gestionnaireLisible(r.nom_gestionnaire),
+        Quartier: r.ngp || (r.quartier ? `Quartier ${r.quartier}` : null),
+      }),
       source: 'opendata',
       statut_moderation: 'approuve',
     }));
