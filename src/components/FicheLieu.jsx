@@ -128,6 +128,17 @@ export default function FicheLieu({ lieu, categorie, onFermer, onSignaler, estFa
   }
 
   const lienItineraire = `https://www.google.com/maps/dir/?api=1&destination=${lieu.lat},${lieu.lng}`;
+  // Recherche Google Maps par nom + position : ouvre la fiche Google du lieu
+  // (l'utilisateur y consulte les avis directement chez Google).
+  const lienGoogleMaps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    lieu.nom
+  )}&query_place_id=&center=${lieu.lat},${lieu.lng}`;
+  // Site web éventuel : stocké soit dans une colonne dédiée, soit dans details
+  const siteWeb =
+    lieu.site_web ||
+    lieu.details?.Site ||
+    lieu.details?.['Site web'] ||
+    null;
 
   async function proposerPhoto(e) {
     const fichier = e.target.files?.[0];
@@ -246,18 +257,13 @@ export default function FicheLieu({ lieu, categorie, onFermer, onSignaler, estFa
 
       {lieu.details && (
         <div style={{ margin: '8px 0' }}>
-          {Object.entries(lieu.details).map(([cle, valeur]) => (
-            <div key={cle} style={{ fontSize: 14, padding: '2px 0' }}>
-              <strong>{cle} :</strong>{' '}
-              {String(valeur).startsWith('http') ? (
-                <a href={valeur} target="_blank" rel="noreferrer">
-                  lien
-                </a>
-              ) : (
-                valeur
-              )}
-            </div>
-          ))}
+          {Object.entries(lieu.details)
+            .filter(([cle, valeur]) => !String(valeur).startsWith('http') && cle !== 'Site' && cle !== 'Site web')
+            .map(([cle, valeur]) => (
+              <div key={cle} style={{ fontSize: 14, padding: '2px 0' }}>
+                <strong>{cle} :</strong> {valeur}
+              </div>
+            ))}
         </div>
       )}
 
@@ -270,6 +276,32 @@ export default function FicheLieu({ lieu, categorie, onFermer, onSignaler, estFa
         <button className="btn" onClick={partager}>
           {lienCopie ? '✓ Lien copié' : '🔗 Partager'}
         </button>
+      </div>
+
+      <div className="row" style={{ marginTop: 8 }}>
+        <a
+          className="btn"
+          href={lienGoogleMaps}
+          target="_blank"
+          rel="noreferrer"
+          style={{ textAlign: 'center', textDecoration: 'none' }}
+        >
+          🔎 Voir sur Google Maps
+        </a>
+        {siteWeb && (
+          <a
+            className="btn"
+            href={siteWeb.startsWith('http') ? siteWeb : `https://${siteWeb}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ textAlign: 'center', textDecoration: 'none' }}
+          >
+            🌐 Site web
+          </a>
+        )}
+      </div>
+
+      <div className="row" style={{ marginTop: 8 }}>
         {!signalementOuvert && (
           <button className="btn" onClick={() => setSignalementOuvert(true)}>
             ⚠️ Signaler un problème

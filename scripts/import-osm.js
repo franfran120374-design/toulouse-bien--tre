@@ -202,6 +202,7 @@ async function run() {
             Accès: accesLisible(tags),
             Tarif: tags.fee === 'yes' ? 'Payant' : tags.fee === 'no' ? 'Gratuit' : null,
             Gestionnaire: tags.operator || null,
+            Site: tags.website || tags['contact:website'] || null,
           }),
           source: 'osm', // origine OpenStreetMap (distinct de l'open data Toulouse)
           statut_moderation: 'approuve',
