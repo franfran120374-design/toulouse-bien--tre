@@ -8,6 +8,7 @@ import FormulaireAjout from './components/FormulaireAjout.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
 import Aide from './components/Aide.jsx';
 import opening_hours from 'opening_hours';
+import { lireFavoris, basculerFavori } from './lib/favoris.js';
 
 // Helpers de filtrage avancé, définis hors composant pour rester stables.
 function estOuvertMaintenant(lieu) {
@@ -79,6 +80,14 @@ function CarteApp() {
   const [rayon, setRayon] = useState(500); // mètres
   const [autourActif, setAutourActif] = useState(false);
   const [geoErreur, setGeoErreur] = useState(null);
+
+  // Favoris (stockés sur l'appareil)
+  const [favoris, setFavoris] = useState(lireFavoris());
+  const [vueFavoris, setVueFavoris] = useState(false); // n'afficher que les favoris
+
+  function toggleFavori(id) {
+    setFavoris(basculerFavori(id));
+  }
 
 
   const chargerDonnees = useCallback(async () => {
@@ -167,9 +176,14 @@ function CarteApp() {
     );
   }
 
-  // Aucune catégorie cochée = carte vide (l'utilisateur choisit ce qu'il cherche)
+  // Mode favoris : on affiche uniquement les lieux épinglés (toutes catégories).
+  // Sinon : aucune catégorie cochée = carte vide (l'utilisateur choisit).
   const lieuxFiltres = lieux.filter((l) => {
-    if (!categoriesActives.includes(l.categorie_id)) return false;
+    if (vueFavoris) {
+      if (!favoris.includes(l.id)) return false;
+    } else {
+      if (!categoriesActives.includes(l.categorie_id)) return false;
+    }
     if (filtresAv.pmr && !l.accessible_pmr) return false;
     if (filtresAv.ouvert && !estOuvertMaintenant(l)) return false;
     if (filtresAv.ombrage && !estOmbrage(l)) return false;
@@ -252,6 +266,12 @@ function CarteApp() {
 
       <div className="filtres" style={{ background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
         <button
+          className={`filtre-chip ${vueFavoris ? 'actif' : ''}`}
+          onClick={() => setVueFavoris((v) => !v)}
+        >
+          ⭐ Mes favoris {favoris.length > 0 && `(${favoris.length})`}
+        </button>
+        <button
           className={`filtre-chip ${autourActif ? 'actif' : ''}`}
           onClick={() => (autourActif ? setAutourActif(false) : activerAutourDeMoi())}
         >
@@ -295,7 +315,7 @@ function CarteApp() {
           posUser={autourActif ? posUser : null}
           rayon={rayon}
         />
-        {categoriesActives.length === 0 && !modeAjout && (
+        {categoriesActives.length === 0 && !vueFavoris && !modeAjout && (
           <div
             style={{
               position: 'absolute',
@@ -315,6 +335,26 @@ function CarteApp() {
             👆 Choisis une ou plusieurs catégories ci-dessus pour afficher les lieux
           </div>
         )}
+        {vueFavoris && favoris.length === 0 && !modeAjout && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 12,
+              left: 12,
+              right: 12,
+              zIndex: 1000,
+              background: '#f59e0b',
+              color: 'white',
+              padding: '10px 14px',
+              borderRadius: 8,
+              textAlign: 'center',
+              fontWeight: 600,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+            }}
+          >
+            ⭐ Aucun favori pour l'instant. Ouvre un lieu et appuie sur l'étoile pour l'épingler.
+          </div>
+        )}
       </div>
 
       {lieuSelectionne && (
@@ -323,6 +363,8 @@ function CarteApp() {
           categorie={categories.find((c) => c.id === lieuSelectionne.categorie_id)}
           onFermer={fermerLieu}
           onSignaler={soumettreSignalement}
+          estFavori={favoris.includes(lieuSelectionne.id)}
+          onToggleFavori={() => toggleFavori(lieuSelectionne.id)}
         />
       )}
 

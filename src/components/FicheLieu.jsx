@@ -45,7 +45,7 @@ async function compresserImage(fichier, largeurMax = 1600, qualite = 0.82) {
   return blob; // toujours du JPEG en sortie
 }
 
-export default function FicheLieu({ lieu, categorie, onFermer, onSignaler }) {
+export default function FicheLieu({ lieu, categorie, onFermer, onSignaler, estFavori, onToggleFavori }) {
   const [signalementOuvert, setSignalementOuvert] = useState(false);
   const [type, setType] = useState(TYPES_SIGNALEMENT[0].value);
   const [commentaire, setCommentaire] = useState('');
@@ -192,7 +192,25 @@ export default function FicheLieu({ lieu, categorie, onFermer, onSignaler }) {
       <span className="badge">
         {categorie?.icone} {categorie?.nom}
       </span>
-      <h2>{lieu.nom}</h2>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <h2 style={{ flex: 1, margin: '8px 0' }}>{lieu.nom}</h2>
+        {onToggleFavori && (
+          <button
+            onClick={onToggleFavori}
+            title={estFavori ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+            style={{
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              fontSize: 28,
+              lineHeight: 1,
+              color: estFavori ? '#f59e0b' : '#cbd5e1',
+            }}
+          >
+            ★
+          </button>
+        )}
+      </div>
 
       {lieu.photo_url && (
         <img
