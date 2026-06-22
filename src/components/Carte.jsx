@@ -4,6 +4,7 @@ import {
   TileLayer,
   Marker,
   Popup,
+  Circle,
   useMapEvents,
   useMap,
 } from 'react-leaflet';
@@ -46,6 +47,19 @@ function GestionnaireClics({ modeAjout, onClicCarte }) {
       if (modeAjout) onClicCarte({ lat: e.latlng.lat, lng: e.latlng.lng });
     },
   });
+  return null;
+}
+
+// Recentre/zoome la carte sur la position utilisateur quand elle change
+function RecentrerSur({ pos, rayon }) {
+  const map = useMap();
+  React.useEffect(() => {
+    if (pos) {
+      // zoom adapté au rayon : plus le rayon est grand, plus on dézoome
+      const zoom = rayon >= 1000 ? 14 : rayon >= 500 ? 15 : 16;
+      map.flyTo([pos.lat, pos.lng], zoom);
+    }
+  }, [pos, rayon, map]);
   return null;
 }
 
@@ -100,6 +114,8 @@ export default function Carte({
   pointEnAttente,
   onClicCarte,
   onClicLieu,
+  posUser,
+  rayon,
 }) {
   const categorieParId = Object.fromEntries(categories.map((c) => [c.id, c]));
 
@@ -123,6 +139,26 @@ export default function Carte({
 
         <GestionnaireClics modeAjout={modeAjout} onClicCarte={onClicCarte} />
         <BoutonMaPosition />
+        <RecentrerSur pos={posUser} rayon={rayon} />
+
+        {posUser && (
+          <>
+            <Circle
+              center={[posUser.lat, posUser.lng]}
+              radius={rayon}
+              pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.08 }}
+            />
+            <Marker
+              position={[posUser.lat, posUser.lng]}
+              icon={L.divIcon({
+                html: `<div style="background:#2563eb;width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 0 0 2px #2563eb;"></div>`,
+                className: '',
+                iconSize: [18, 18],
+                iconAnchor: [9, 9],
+              })}
+            />
+          </>
+        )}
 
         {/*
           Cluster : avec plusieurs centaines de lieux, des marqueurs proches

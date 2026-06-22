@@ -64,6 +64,28 @@ export default function FicheLieu({ lieu, categorie, onFermer, onSignaler }) {
   const [avisEnvoi, setAvisEnvoi] = useState(false);
   const [avisEnvoye, setAvisEnvoye] = useState(false);
   const [avisErreur, setAvisErreur] = useState(null);
+  const [lienCopie, setLienCopie] = useState(false);
+
+  async function partager() {
+    const url = `${window.location.origin}/lieu/${lieu.id}`;
+    // Sur mobile, ouvre le menu de partage natif ; sinon copie le lien
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: lieu.nom, text: `${lieu.nom} sur Toulouse Bien-être`, url });
+        return;
+      } catch {
+        // l'utilisateur a annulé le partage : on ne fait rien
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setLienCopie(true);
+      setTimeout(() => setLienCopie(false), 2000);
+    } catch {
+      // clipboard indisponible (vieux navigateur) : on affiche le lien à copier
+      window.prompt('Copie ce lien :', url);
+    }
+  }
 
   useEffect(() => {
     let actif = true;
@@ -227,6 +249,9 @@ export default function FicheLieu({ lieu, categorie, onFermer, onSignaler }) {
         <a className="btn" href={lienItineraire} target="_blank" rel="noreferrer" style={{ textAlign: 'center', textDecoration: 'none' }}>
           🧭 Y aller
         </a>
+        <button className="btn" onClick={partager}>
+          {lienCopie ? '✓ Lien copié' : '🔗 Partager'}
+        </button>
         {!signalementOuvert && (
           <button className="btn" onClick={() => setSignalementOuvert(true)}>
             ⚠️ Signaler un problème

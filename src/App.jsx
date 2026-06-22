@@ -2,10 +2,49 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient.js';
 import Carte from './components/Carte.jsx';
 import Filtres from './components/Filtres.jsx';
+import FiltresAvances from './components/FiltresAvances.jsx';
 import FicheLieu from './components/FicheLieu.jsx';
 import FormulaireAjout from './components/FormulaireAjout.jsx';
 import AdminPanel from './components/AdminPanel.jsx';
 import Aide from './components/Aide.jsx';
+import opening_hours from 'opening_hours';
+
+// Helpers de filtrage avancé, définis hors composant pour rester stables.
+function estOuvertMaintenant(lieu) {
+  // Pas d'horaires = accès permanent => considéré ouvert
+  if (!lieu.horaires) return true;
+  try {
+    return new opening_hours(lieu.horaires).getState(new Date());
+  } catch {
+    // Format d'horaire non interprétable : on n'exclut pas (on l'affiche)
+    return true;
+  }
+}
+
+function estOmbrage(lieu) {
+  const o = lieu.details?.Ombrage;
+  if (!o) return false;
+  const t = String(o).toLowerCase();
+  return !t.includes('non') && !t.includes('aucun') && !t.includes('sans');
+}
+
+// Distance en mètres entre deux points GPS (formule de Haversine)
+function distanceM(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(lat2 - lat1);
+  const dLng = rad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// Lit l'id de lieu dans l'URL si on est arrivé sur /lieu/xxxx
+function lieuIdDepuisUrl() {
+  const m = window.location.pathname.match(/^\/lieu\/([0-9a-fA-F-]+)/);
+  return m ? m[1] : null;
+}
 
 export default function App() {
   // Petit "routeur" sans dépendance : l'URL #admin affiche le panel
@@ -33,6 +72,13 @@ function CarteApp() {
   const [nouveauPoint, setNouveauPoint] = useState(null); // { lat, lng } en attente de formulaire
   const [lieuSelectionne, setLieuSelectionne] = useState(null);
   const [aideVisible, setAideVisible] = useState(true);
+  const [filtresAv, setFiltresAv] = useState({ pmr: false, ouvert: false, ombrage: false });
+
+  // Géolocalisation "autour de moi"
+  const [posUser, setPosUser] = useState(null); // { lat, lng }
+  const [rayon, setRayon] = useState(500); // mètres
+  const [autourActif, setAutourActif] = useState(false);
+  const [geoErreur, setGeoErreur] = useState(null);
 
 
   const chargerDonnees = useCallback(async () => {
@@ -76,8 +122,66 @@ function CarteApp() {
     chargerDonnees();
   }, [chargerDonnees]);
 
+  // Si on est arrivé sur /lieu/xxx, ouvrir cette fiche une fois les lieux chargés
+  useEffect(() => {
+    const id = lieuIdDepuisUrl();
+    if (id && lieux.length) {
+      const l = lieux.find((x) => x.id === id);
+      if (l) setLieuSelectionne(l);
+    }
+  }, [lieux]);
+
+  // Bouton "précédent" du navigateur : resynchronise la fiche ouverte
+  useEffect(() => {
+    const onPop = () => {
+      const id = lieuIdDepuisUrl();
+      setLieuSelectionne(id ? lieux.find((x) => x.id === id) || null : null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [lieux]);
+
+  function ouvrirLieu(lieu) {
+    setLieuSelectionne(lieu);
+    // met à jour l'URL sans recharger la page
+    window.history.pushState({}, '', `/lieu/${lieu.id}`);
+  }
+
+  function fermerLieu() {
+    setLieuSelectionne(null);
+    window.history.pushState({}, '', '/');
+  }
+
+  function activerAutourDeMoi() {
+    if (!navigator.geolocation) {
+      setGeoErreur('Géolocalisation non disponible sur cet appareil.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setPosUser({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setAutourActif(true);
+        setGeoErreur(null);
+      },
+      () => setGeoErreur("Position refusée. Autorise la localisation pour utiliser 'Autour de moi'.")
+    );
+  }
+
   // Aucune catégorie cochée = carte vide (l'utilisateur choisit ce qu'il cherche)
-  const lieuxFiltres = lieux.filter((l) => categoriesActives.includes(l.categorie_id));
+  const lieuxFiltres = lieux.filter((l) => {
+    if (!categoriesActives.includes(l.categorie_id)) return false;
+    if (filtresAv.pmr && !l.accessible_pmr) return false;
+    if (filtresAv.ouvert && !estOuvertMaintenant(l)) return false;
+    if (filtresAv.ombrage && !estOmbrage(l)) return false;
+    if (autourActif && posUser) {
+      if (distanceM(posUser.lat, posUser.lng, l.lat, l.lng) > rayon) return false;
+    }
+    return true;
+  });
+
+  function toggleFiltreAvance(cle) {
+    setFiltresAv((prev) => ({ ...prev, [cle]: !prev[cle] }));
+  }
 
   function toggleCategorie(id) {
     setCategoriesActives((prev) =>
@@ -144,6 +248,36 @@ function CarteApp() {
         onToggle={toggleCategorie}
       />
 
+      <FiltresAvances valeurs={filtresAv} onToggle={toggleFiltreAvance} />
+
+      <div className="filtres" style={{ background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
+        <button
+          className={`filtre-chip ${autourActif ? 'actif' : ''}`}
+          onClick={() => (autourActif ? setAutourActif(false) : activerAutourDeMoi())}
+        >
+          📍 Autour de moi
+        </button>
+        {autourActif && (
+          <>
+            {[300, 500, 1000].map((r) => (
+              <button
+                key={r}
+                className={`filtre-chip ${rayon === r ? 'actif' : ''}`}
+                onClick={() => setRayon(r)}
+              >
+                {r < 1000 ? `${r} m` : '1 km'}
+              </button>
+            ))}
+          </>
+        )}
+      </div>
+
+      {geoErreur && (
+        <div className="confirmation" style={{ margin: 12, background: '#fef2f2', borderColor: '#dc2626', color: '#991b1b' }}>
+          {geoErreur}
+        </div>
+      )}
+
       {erreur && (
         <div className="confirmation" style={{ margin: 12, background: '#fef2f2', borderColor: '#dc2626', color: '#991b1b' }}>
           Erreur de chargement : {erreur}. Vérifie ton fichier .env.local et le schéma Supabase.
@@ -157,7 +291,9 @@ function CarteApp() {
           modeAjout={modeAjout}
           pointEnAttente={nouveauPoint}
           onClicCarte={handleClicCarte}
-          onClicLieu={setLieuSelectionne}
+          onClicLieu={ouvrirLieu}
+          posUser={autourActif ? posUser : null}
+          rayon={rayon}
         />
         {categoriesActives.length === 0 && !modeAjout && (
           <div
@@ -185,7 +321,7 @@ function CarteApp() {
         <FicheLieu
           lieu={lieuSelectionne}
           categorie={categories.find((c) => c.id === lieuSelectionne.categorie_id)}
-          onFermer={() => setLieuSelectionne(null)}
+          onFermer={fermerLieu}
           onSignaler={soumettreSignalement}
         />
       )}
