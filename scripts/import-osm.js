@@ -26,8 +26,8 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const OVERPASS = 'https://overpass-api.de/api/interpreter';
-// Bounding box Toulouse Métropole (sud, ouest, nord, est)
-const BBOX = '43.52,1.30,43.73,1.55';
+// Bounding box élargie : toute la métropole et un peu autour (sud, ouest, nord, est)
+const BBOX = '43.45,1.20,43.80,1.65';
 const UA = 'ToulouseBienEtre/1.0 (import script)';
 
 // Une entrée par catégorie : le slug Supabase + le filtre Overpass +
@@ -59,6 +59,26 @@ const SOURCES = [
     slug: 'toilettes',
     filtre: 'nwr["amenity"="toilets"]',
     nomParDefaut: 'Toilettes publiques',
+  },
+  // Catégories ci-dessous : déjà présentes via l'open data Toulouse, mais
+  // l'open data ne couvre que la ville. OSM les complète sur le reste de la
+  // métropole. Les doublons éventuels (même point dans les deux sources)
+  // sont retirés ensuite par dedup.sql.
+  {
+    slug: 'musculation',
+    // tag OSM officiel des agrès de fitness en extérieur (pas les salles)
+    filtre: 'nwr["leisure"="fitness_station"]',
+    nomParDefaut: 'Espace fitness / street workout',
+  },
+  {
+    slug: 'skatepark',
+    filtre: 'nwr["leisure"="skatepark"];nwr["sport"="skateboard"]',
+    nomParDefaut: 'Skatepark',
+  },
+  {
+    slug: 'fontaines',
+    filtre: 'nwr["amenity"="drinking_water"]',
+    nomParDefaut: 'Fontaine à boire',
   },
 ];
 
@@ -183,7 +203,7 @@ async function run() {
             Tarif: tags.fee === 'yes' ? 'Payant' : tags.fee === 'no' ? 'Gratuit' : null,
             Gestionnaire: tags.operator || null,
           }),
-          source: 'opendata', // origine externe (OSM), pas une contribution utilisateur
+          source: 'osm', // origine OpenStreetMap (distinct de l'open data Toulouse)
           statut_moderation: 'approuve',
         };
       })
