@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // Le site est servi sous https://franfran120374-design.github.io/toulouse-bien--tre/
+  base: '/toulouse-bien--tre/',
   plugins: [
     react(),
     VitePWA({
@@ -15,7 +17,8 @@ export default defineConfig({
         theme_color: '#16a34a',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/',
+        start_url: '/toulouse-bien--tre/',
+        scope: '/toulouse-bien--tre/',
         icons: [
           {
             src: 'icons/icon-192.png',

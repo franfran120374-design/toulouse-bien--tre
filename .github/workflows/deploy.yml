@@ -1,0 +1,58 @@
+# Compile l'application Vite/React et la déploie sur GitHub Pages
+# à chaque push sur main. Sans ce build, Pages servait le code source
+# brut (index.html -> /src/main.jsx) qui ne peut pas s'exécuter.
+name: Déployer sur GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Ces deux valeurs sont volontairement en clair : la clé
+      # "publishable" Supabase est publique par conception (elle se
+      # retrouve de toute façon dans le JS servi au navigateur) ;
+      # ce sont les policies RLS côté Supabase qui protègent les données.
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://ezpqexxpktvvborsragt.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_01ckWqpnNrUlPeK464lKTA_yAnoOKO-
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
